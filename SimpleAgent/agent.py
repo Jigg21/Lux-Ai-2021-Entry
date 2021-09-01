@@ -27,7 +27,6 @@ def agent(observation, configuration):
     player = game_state.players[observation.player]
     opponent = game_state.players[(observation.player + 1) % 2]
     width, height = game_state.map.width, game_state.map.height
-
     resource_tiles: list[Cell] = []
     for y in range(height):
         for x in range(width):

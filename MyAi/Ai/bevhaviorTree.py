@@ -2,7 +2,6 @@ import enum
 from logging import debug
 import logging
 from tkinter.constants import UNITS
-from typing import Sequence
 from . import Nodes
 
 #class that represents the entire tree
@@ -10,10 +9,11 @@ class behaviorTree():
     rootNode = None
 
     def __init__(self):
-        self.rootNode = Nodes.node_FallBack()
-        self.rootNode.addChild(Nodes.node_isGameOver())
+        self.rootNode = Nodes.node_FallBack("root")
+        self.rootNode.addChild(Nodes.node_isGameOver("gameCheck"))
     
     def traverse(self,data):
+        logging.info("===================Turn {num}===================".format(num=data["gameState"].turn))
         self.rootNode.activate(data)
     
 
@@ -21,29 +21,21 @@ class behaviorTree():
 
 
 aiTree = behaviorTree()
-SequenceNode = Nodes.node_Sequence()
-allUnitsDec =  Nodes.node_AllUnitsDec()
+allUnitsDec =  Nodes.node_AllUnitsDec("All Units Node")
+SequenceNode = Nodes.node_Sequence("Resource Collection")
+
+mineUntilFullSubTree = Nodes.node_FallBack("Mine Until Full")
+gotoNode = Nodes.node_UnitGoTo("Go to nearest Resource",Nodes.AdjacentPerams.STRICT)
+coordinateNode = Nodes.node_getClosestResource("Get Closest Resource")
+fullCargoNode = Nodes.node_mineUntilFull("Gather Resources")
+
+
 aiTree.rootNode.addChild(allUnitsDec)
 allUnitsDec.addChild(SequenceNode)
-
-
-fallbackNode = Nodes.node_actionFallBack()
-SequenceNode.addChild(fallbackNode)
-
-fullCargoNode = Nodes.node_mineUntilFull()
-fallbackNode.addChild(fullCargoNode)
-
-gotoNode = Nodes.node_UnitGoTo()
-fallbackNode.addChild(gotoNode)
-coordinateNode = Nodes.node_getClosestResource()
+SequenceNode.addChild(mineUntilFullSubTree)
+mineUntilFullSubTree.addChild(fullCargoNode)
+mineUntilFullSubTree.addChild(gotoNode)
 gotoNode.addChild(coordinateNode)
-
-
-
-
-
-gotoOriginNode = Nodes.node_UnitGoTo(adjacent=True)
-gotoOriginNode.addChild(Nodes.node_coordinateLiteral(0,0))
-SequenceNode.addChild(gotoOriginNode)
+SequenceNode.addChild(Nodes.subTree_dumpResources("Resource Drop Off"))
 
 
