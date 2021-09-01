@@ -30,7 +30,8 @@ def agent(observation, configuration):
     width, height = game_state.map.width, game_state.map.height
     #Create a dictionary of game info the ai needs
     gameInfo = dict()
-    gameInfo["Turn"] = game_state.turn
+    
+    gameInfo["gameState"] = game_state
     gameInfo["FriendlyUnits"] = player.units
     gameInfo["ActionsArray"] = actions
     gameInfo["Player"] = player
@@ -40,7 +41,7 @@ def agent(observation, configuration):
             cell = game_state.map.get_cell(x, y)
             if cell.has_resource():
                 resource_tiles.append(cell)
-    gameInfo["ResourceTiles"]
+    gameInfo["ResourceTiles"] = resource_tiles
     # we iterate over all our units and do something with them
     bt.aiTree.traverse(gameInfo)
     # you can add debug annotations using the functions in the annotate object
