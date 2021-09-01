@@ -12,7 +12,7 @@ class MatchRunner(tk.Frame):
     botBPath = ""
     def __init__(self):
         print("Initializing")
-
+        print(os.getcwd())
         self.window = tk.Tk()
         self.window.title("Run Match")
         self.window.geometry("300x150")
@@ -49,14 +49,19 @@ class MatchRunner(tk.Frame):
                                                 filetypes=(("Python Files","*.py"),("all files","*."))
             )
             self.botAPath = filename
-            self.button_exploreA.config(text=filename[filename.find("Lux/")+4:])       
+            sanitizedPath = os.getcwd()[3:].replace("\\","/")
+            buttonText = filename[filename.find(sanitizedPath)+len(sanitizedPath)+1:]
+            self.button_exploreA.config(text=buttonText)
         else:
             filename = filedialog.askopenfilename(initialdir= os.path.abspath(__file__),
                                                 title = "Select bot b",
                                                 filetypes=(("Python Files","*.py"),("all files","*."))
             )
             self.botBPath = filename
-            self.button_exploreB.config(text=filename[filename.find("Lux/")+4:])
+            sanitizedPath = os.getcwd()[3:].replace("\\","/")
+            buttonText = filename[filename.find(sanitizedPath)+len(sanitizedPath)+1:]
+            self.button_exploreB.config(text=buttonText)
+        pass        
 
     def launchMatch(self):
         try:

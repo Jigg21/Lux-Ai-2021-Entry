@@ -179,21 +179,25 @@ class node_coordinateLiteral(node):
     def activate(self, data,unit):
         return self.coordinate
 
-#move a unit to a specific target
+#move a unit to coordinates, given position object
 class node_UnitGoTo(actionNode):
+    #adjacent: if the agent can stop when adjacent to location
     def __init__(self,adjacent=False):
         super().__init__()
         self.adjacent = adjacent
 
     def activate(self, data,unit):
-        #coordinateData
+        #position object representing target location
         target = self.children[0].activate(data,unit)
+        #return success when the unit reaches position
         if unit.pos == target or (unit.pos.is_adjacent(target) and self.adjacent):
             return NodeStatus.SUCCEEDED
 
-        if unit.cooldown > 0:
+        #wait if the unit needs to cooldown
+        if unit.can_act():
             return NodeStatus.WAITING
         else:
+            #go to the X coordinate
             if target.x > unit.pos.x:
                 data["ActionsArray"].append(unit.move('e'))
                 return NodeStatus.WAITING
@@ -201,6 +205,7 @@ class node_UnitGoTo(actionNode):
                 data["ActionsArray"].append(unit.move('w'))
                 return NodeStatus.WAITING
 
+            #go to the Y coordinate
             if target.y > unit.pos.y:
                 data["ActionsArray"].append(unit.move('s'))
                 return NodeStatus.WAITING
@@ -208,6 +213,7 @@ class node_UnitGoTo(actionNode):
                 data["ActionsArray"].append(unit.move('n'))
                 return NodeStatus.WAITING
 
+            #The unit is at the target
             return NodeStatus.SUCCEEDED
 
 #wait until unit's cargo is full
@@ -250,4 +256,17 @@ class node_getClosestResource(actionNode):
             return closest_resource_tile.pos
         else:
             return None
-#New Line
+
+#get coordinates of the closest city
+class node_getClosestCity(actionNode):
+    def activate(self, data, unit):
+        if len(data["Player"].cities) > 0:
+            closest_dist = math.inf
+            closest_city_tile = None
+            for k, city in data["Player"].cities.items():
+                for city_tile in city.citytiles:
+                    dist = city_tile.pos.distance_to(unit.pos)
+                    if dist < closest_dist:
+                        closest_dist = dist
+                        closest_city_tile = city_tile
+            return  closest_city_tile.pos
