@@ -23,19 +23,11 @@ class behaviorTree():
 aiTree = behaviorTree()
 allUnitsDec =  Nodes.node_AllUnitsDec("All Units Node")
 SequenceNode = Nodes.node_Sequence("Resource Collection")
-
-mineUntilFullSubTree = Nodes.node_FallBack("Mine Until Full")
-gotoNode = Nodes.node_UnitGoTo("Go to nearest Resource",Nodes.AdjacentPerams.STRICT)
-coordinateNode = Nodes.node_getClosestResource("Get Closest Resource")
-fullCargoNode = Nodes.node_mineUntilFull("Gather Resources")
-
-
 aiTree.rootNode.addChild(allUnitsDec)
 allUnitsDec.addChild(SequenceNode)
-SequenceNode.addChild(mineUntilFullSubTree)
-mineUntilFullSubTree.addChild(fullCargoNode)
-mineUntilFullSubTree.addChild(gotoNode)
-gotoNode.addChild(coordinateNode)
+
+gather = Nodes.subTree_gatherResources("Gather Fuel")
+SequenceNode.addChild(gather)
 SequenceNode.addChild(Nodes.subTree_dumpResources("Resource Drop Off"))
 
 

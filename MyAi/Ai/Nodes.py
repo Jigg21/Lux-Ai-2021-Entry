@@ -8,6 +8,7 @@ import logging
 from lux.game_map import Position
 from lux.constants import Constants
 import math
+
 logging.basicConfig(filename='debug.log', encoding='utf-8', level=logging.DEBUG,filemode="w")
 logging.info("Begining Log")
 
@@ -57,11 +58,8 @@ class AdjacentPerams(enum.Enum):
     #normal adjacency
     NORMAL = 3
 
-
-
 #base class for each node in the tree
 class node():
-    
     nodeType = None
     def __init__(self,name):
         self.name = name
@@ -101,7 +99,7 @@ class node_Sequence(node):
                 return result
         return NodeStatus.SUCCEEDED
 
-#return success if one returns success
+#return success if at least one child returns success
 class node_FallBack(node):
     
     def activate(self, data):
@@ -160,7 +158,7 @@ class node_coordinateLiteral(node):
         super().activate(data)
         return self.coordinate
 
-#move a unit to coordinates, given position object
+#move a unit to coordinates from child node
 class node_UnitGoTo(node):
     #adjacent: if the agent can stop when adjacent to location
     def __init__(self,name,adjacent=AdjacentPerams.EXACT):
@@ -244,6 +242,26 @@ class node_getClosestResource(node):
             logging.warn("CAN'T FIND RESOURCES")
             return None
 
+class node_getBestResource(node):
+    def countAdjacentResources(self,data,unit):
+        posN = Position(clamp(0,data["gameState"].map.width,unit.pos.x),clamp(0,data["gameState"].map.height,unit.pos.y-1))
+        posE = Position(clamp(0,data["gameState"].map.width,unit.pos.x+1),clamp(0,data["gameState"].map.height,unit.pos.y))
+        posC = Position(unit.pos.x,unit.pos.y)
+        posW = Position(clamp(0,data["gameState"].map.width,unit.pos.x-1),clamp(0,data["gameState"].map.height,unit.pos.y))
+        posS = Position(clamp(0,data["gameState"].map.width,unit.pos.x),clamp(0,data["gameState"].map.height,unit.pos.y+1))
+
+        result = data["gameState"].map.get_cell_by_pos(posN).has_resource()
+        result = result or data["gameState"].map.get_cell_by_pos(posE).has_resource()
+        result = result or data["gameState"].map.get_cell_by_pos(posC).has_resource()
+        result = result or data["gameState"].map.get_cell_by_pos(posW).has_resource()
+        result = result or data["gameState"].map.get_cell_by_pos(posS).has_resource()
+        return result
+
+    def activate(self, data):
+        super().activate(data)
+        unit = data["CurrentUnit"]
+
+
 #get coordinates of the closest city
 class node_getClosestCity(node):
     def activate(self, data):
@@ -262,7 +280,7 @@ class node_getClosestCity(node):
 
 #is a unit's cargo empty?
 class node_emptyCargo(node):
-
+    nodeType = NodeTypes.VALUE
     def adjacentCities(self,data,unit):
         posN = Position(unit.pos.x,unit.pos.y+1)
         posE = Position(unit.pos.x+1,unit.pos.y)
@@ -288,8 +306,31 @@ class node_emptyCargo(node):
         else:
             return NodeStatus.WAITING
 
+class node_placeCity(node):
+    def activate(self, data):
+        super().activate(data)
+        unit = data["CurrentUnit"]
+        #if the unit can build a city tile do it
+        if unit.can_build():
+            data["ActionsArray"].append(unit.build_city())
+            
+            return NodeStatus.SUCCEEDED
+        else:
+            return NodeStatus.WAITING
+
+#base class for the subtree classes
+class subTree(node):
+    def __init__(self,name):
+        super().__init__(name)
+    
+    def activate(self, data):         
+        return self.rootNode.activate(data)
+    
+    def addChild(self, child):
+        raise SubtreeChildAssignmentError
+    
 #subtree that orders unit to return to the nearest city until cargo is empty
-class subTree_dumpResources(node):
+class subTree_dumpResources(subTree):
     def __init__(self,name):
         super().__init__(name)
         
@@ -301,6 +342,19 @@ class subTree_dumpResources(node):
         self.rootNode.addChild(emptyCargoNode)
         self.rootNode.addChild(gotoNode)
         gotoNode.addChild(coordinateNode)
+
+#subtree that orders a unit to gather resources until their inventories are full       
+class subTree_gatherResources(subTree):
+    def __init__(self,name):
+        super().__init__(name)
+        self.rootNode = node_FallBack("Mine Until Full")
+        gotoNode = node_UnitGoTo("Go to nearest Resource",AdjacentPerams.NORMAL)
+        coordinateNode = node_getClosestResource("Get Closest Resource")
+        fullCargoNode = node_mineUntilFull("Gather Resources")
+        self.rootNode.addChild(fullCargoNode)
+        self.rootNode.addChild(gotoNode)
+        gotoNode.addChild(coordinateNode)
+
         
     
     def activate(self, data):
@@ -309,6 +363,20 @@ class subTree_dumpResources(node):
 
     def addChild(self, child):
         raise SubtreeChildAssignmentError
+
+class subTree_expandCity(subTree):
+    def __init__(self,name):
+        super().__init__(name)
+        self.rootNode = node_Sequence("Expand City")
+        gatherResources = subTree_gatherResources("Gather Resources")
+        gotoNode = node_UnitGoTo("Go to nearest City",adjacent=NORMAL)
+        cityCoordinates = node_getClosestCity("Find Closest City")
+        placeCity = node_placeCity("Place City Tile")
+
+        self.rootNode.addChild(gatherResources)
+        self.rootNode.addChild(gotoNode)
+        gotoNode.addChild(cityCoordinates)
+        self.rootNode.addChild(placeCity)
 
 
 def isStrictlyAdjacent(pos1,pos2):

@@ -22,9 +22,9 @@ class MatchRunner(tk.Frame):
         self.mainFrame = tk.Frame(self.window)
         self.browseA = tk.Frame(self.mainFrame,bg="white")
         self.browseB = tk.Frame(self.mainFrame,bg="white")
-        self.label_file_explorerA = Label(self.browseA,text="Bot A",
-                                width= 10, height= 5, fg = "blue",bg="white")
-        self.label_file_explorerB = Label(self.browseB,text="Bot B",
+        self.label_file_explorerA = Label(self.browseA,text="Team 0",
+                                width= 10, height= 5, fg = "orange",bg="white")
+        self.label_file_explorerB = Label(self.browseB,text="Team 1",
                                 width= 10, height= 5, fg = "blue",bg="white")
         self.button_exploreA = Button(self.browseA,text="Browse",command=lambda:self.browseFiles(True))
         self.button_exploreB = Button(self.browseB,text="Browse",command=lambda:self.browseFiles(False))
@@ -45,7 +45,7 @@ class MatchRunner(tk.Frame):
     def browseFiles(self,botA):
         if botA:
             filename = filedialog.askopenfilename(initialdir=os.path.abspath(__file__),
-                                                title = "Select bot a",
+                                                title = "Select Team 0",
                                                 filetypes=(("Python Files","*.py"),("all files","*."))
             )
             self.botAPath = filename
@@ -54,7 +54,7 @@ class MatchRunner(tk.Frame):
             self.button_exploreA.config(text=buttonText)
         else:
             filename = filedialog.askopenfilename(initialdir= os.path.abspath(__file__),
-                                                title = "Select bot b",
+                                                title = "Select Team 1",
                                                 filetypes=(("Python Files","*.py"),("all files","*."))
             )
             self.botBPath = filename
