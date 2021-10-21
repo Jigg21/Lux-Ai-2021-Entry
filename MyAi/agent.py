@@ -8,6 +8,7 @@ from lux.constants import Constants
 from lux.game_constants import GAME_CONSTANTS
 from lux import annotate
 from Ai import bevhaviorTree as bt
+from lux.game_objects import City
 DIRECTIONS = Constants.DIRECTIONS
 game_state = None
 
@@ -38,12 +39,18 @@ def agent(observation, configuration):
     gameInfo["FriendlyUnits"] = player.units
     gameInfo["ActionsArray"] = actions
     gameInfo["Player"] = player
+    
+    
     resource_tiles: list[Cell] = []
     tileYields = []
+    #get specific cell data
     for y in range(height):
         for x in range(width):
             cell = game_state.map.get_cell(x, y)
+            #Get each tiles potential resource value
             tileYields.append(((x,y),countAdjacentResources(x,y)))
+            
+            #Get each tile which has a resource on it
             if cell.has_resource():
                 resource_tiles.append(cell)
     gameInfo["ResourceTiles"] = resource_tiles

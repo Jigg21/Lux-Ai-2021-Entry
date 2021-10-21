@@ -19,15 +19,15 @@ class behaviorTree():
 
 
 
-
+#instantiate behavior tree
 aiTree = behaviorTree()
-allUnitsDec =  Nodes.node_AllUnitsDec("All Units Node")
-SequenceNode = Nodes.node_Sequence("Resource Collection")
-aiTree.rootNode.addChild(allUnitsDec)
-allUnitsDec.addChild(SequenceNode)
 
-gather = Nodes.subTree_gatherResources("Gather Fuel")
-SequenceNode.addChild(gather)
-SequenceNode.addChild(Nodes.subTree_dumpResources("Resource Drop Off"))
+#for each unit
+allUnitsDec =  Nodes.node_AllUnitsDec("All Units Node")
+#collect resources
+expandCity = Nodes.subTree_expandCity("Expand City Subtree")
+aiTree.rootNode.addChild(allUnitsDec)
+allUnitsDec.addChild(expandCity)
+
 
 

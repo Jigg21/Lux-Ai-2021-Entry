@@ -12,6 +12,7 @@ import math
 logging.basicConfig(filename='debug.log', encoding='utf-8', level=logging.DEBUG,filemode="w")
 logging.info("Begining Log")
 
+#Error cases
 class NodeHeirarchyError(Exception):
     def __init__(self, *args: object):
         super().__init__(*args)
@@ -25,7 +26,7 @@ class MissingUnitInformationError:
     def __init__(self):
         self.message = "A node which needed unit information did not get it"
 
-#what kind of node is this
+#What kind of node is this
 class NodeTypes(enum.Enum):
     #returns some value or condition
     VALUE = 1
@@ -99,6 +100,33 @@ class node_Sequence(node):
                 return result
         return NodeStatus.SUCCEEDED
 
+#For sequences which should only be done once
+class node_Discrete_Sequence(node):
+    nodeType = NodeTypes.SEQUENCE
+
+    #repeat: how many times to repeat this sequence -1 = repeat forever
+    def __init__(self, name, repeat):
+        super().__init__(name)
+        self.currentChild = 0
+        if repeat == -1:
+            self.repeat = math.inf
+        else:
+            self.repeat = repeat
+
+    def activate(self, data):
+        super().activate(data)
+        if self.currentChild >= len(self.children):
+            if (self.repeat <= 0):
+                return NodeStatus.SUCCEEDED
+            else:
+                self.repeat -= 1
+                self.currentChild = 0
+        result = self.children[self.currentChild].activate(data)
+        if result == NodeStatus.SUCCEEDED:
+            self.currentChild += 1
+        else:
+            return result
+
 #return success if at least one child returns success
 class node_FallBack(node):
     
@@ -160,7 +188,7 @@ class node_coordinateLiteral(node):
 
 #move a unit to coordinates from child node
 class node_UnitGoTo(node):
-    #adjacent: if the agent can stop when adjacent to location
+    
     def __init__(self,name,adjacent=AdjacentPerams.EXACT):
         super().__init__(name)
         self.adjacent = adjacent
@@ -175,23 +203,31 @@ class node_UnitGoTo(node):
         if unit.pos == target and self.adjacent == AdjacentPerams.EXACT:
             logging.debug("Arrived")
             return NodeStatus.SUCCEEDED
+        #returns success if the unit is on or adjacent to the target
         if  unit.pos.is_adjacent(target) and self.adjacent == AdjacentPerams.NORMAL:
             logging.debug("Arrived")
             return NodeStatus.SUCCEEDED
+        #returns success if the unit is adjacent, but not on the target
         if isStrictlyAdjacent(target,unit.pos) and self.adjacent == AdjacentPerams.STRICT:
             logging.debug("Arrived")
             return NodeStatus.SUCCEEDED
 
-        
-
-        #if the unit can act
+        #Check if the unit can safely go there
+        dayNightTurn = data["gameState"].turn % 40
+        if dayNightTurn >= 30:
+            nightRemaining = 40 - dayNightTurn
+            #TODO: Add extra logic for carts, roads, etc.
+            #if the unit has enough fuel to make it
+            logging.debug("CALCULATED MOVE COST: {x}".format(x=nightRemaining * 8 * unit.pos.distance_to(target)))
+            if nightRemaining * 8 * unit.pos.distance_to(target) > unit.cargo.wood:
+                return NodeStatus.WAITING
+        #if the unit is not cooling down
         if unit.can_act():
-            #go to it
             logging.debug("Moving")
             data["ActionsArray"].append(unit.move(unit.pos.direction_to(target)))
-
-        return NodeStatus.WAITING
-
+        else:
+            return NodeStatus.WAITING
+                
 #wait until unit's cargo is full
 class node_mineUntilFull(node):
 
@@ -242,25 +278,21 @@ class node_getClosestResource(node):
             logging.warn("CAN'T FIND RESOURCES")
             return None
 
+#TODO: Find closest cell with best resource yield
 class node_getBestResource(node):
-    def countAdjacentResources(self,data,unit):
-        posN = Position(clamp(0,data["gameState"].map.width,unit.pos.x),clamp(0,data["gameState"].map.height,unit.pos.y-1))
-        posE = Position(clamp(0,data["gameState"].map.width,unit.pos.x+1),clamp(0,data["gameState"].map.height,unit.pos.y))
-        posC = Position(unit.pos.x,unit.pos.y)
-        posW = Position(clamp(0,data["gameState"].map.width,unit.pos.x-1),clamp(0,data["gameState"].map.height,unit.pos.y))
-        posS = Position(clamp(0,data["gameState"].map.width,unit.pos.x),clamp(0,data["gameState"].map.height,unit.pos.y+1))
-
-        result = data["gameState"].map.get_cell_by_pos(posN).has_resource()
-        result = result or data["gameState"].map.get_cell_by_pos(posE).has_resource()
-        result = result or data["gameState"].map.get_cell_by_pos(posC).has_resource()
-        result = result or data["gameState"].map.get_cell_by_pos(posW).has_resource()
-        result = result or data["gameState"].map.get_cell_by_pos(posS).has_resource()
-        return result
-
     def activate(self, data):
         super().activate(data)
         unit = data["CurrentUnit"]
 
+#Get the amount of fuel that it will take to survive night
+class node_get_night_upkeep(node):
+    def activate(self, data):
+        super().activate(data)
+        #TODO: Add multiple city support
+        upkeep = data["Player"].cities[0].get_light_upkeep() * 10
+        #TODO: Add extra upkeep for carts
+        upkeep += len(data["FriendlyUnits"]) * 40
+        return upkeep  
 
 #get coordinates of the closest city
 class node_getClosestCity(node):
@@ -306,14 +338,15 @@ class node_emptyCargo(node):
         else:
             return NodeStatus.WAITING
 
+#place a city down
 class node_placeCity(node):
     def activate(self, data):
         super().activate(data)
         unit = data["CurrentUnit"]
         #if the unit can build a city tile do it
-        if unit.can_build():
+        if unit.can_build(data["gameState"].map):
             data["ActionsArray"].append(unit.build_city())
-            
+            logging.info("Placing a city")
             return NodeStatus.SUCCEEDED
         else:
             return NodeStatus.WAITING
@@ -364,12 +397,13 @@ class subTree_gatherResources(subTree):
     def addChild(self, child):
         raise SubtreeChildAssignmentError
 
+#subtree that expands the city every two inventories
 class subTree_expandCity(subTree):
     def __init__(self,name):
         super().__init__(name)
-        self.rootNode = node_Sequence("Expand City")
+        self.rootNode = node_Discrete_Sequence("Expand City",repeat= -1)
         gatherResources = subTree_gatherResources("Gather Resources")
-        gotoNode = node_UnitGoTo("Go to nearest City",adjacent=NORMAL)
+        gotoNode = node_UnitGoTo("Go to nearest City",adjacent=AdjacentPerams.STRICT)
         cityCoordinates = node_getClosestCity("Find Closest City")
         placeCity = node_placeCity("Place City Tile")
 
